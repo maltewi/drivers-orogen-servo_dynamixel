@@ -10,6 +10,8 @@ import_types_from "base/JointTransform.hpp"
 task_context "Task" do
     needs_configuration
 
+    runtime_states 'OVERLOAD'
+
     # the system device name for the servo controller command
     property "device", "/std/string"
 

@@ -157,6 +157,7 @@ bool Task::configureHook()
             return false;
         if (!dynamixel_.setControlTableEntry("Torque Limit", servo_limits.max_effort))
             return false;
+        LOG_ERROR_S << "Torque Limit:" << servo_limits.max_effort;
 
         // disable the torque, so make the servo passive
         if(!dynamixel_.setControlTableEntry("Torque Enable", _keep_torque_enabled.value()))
@@ -187,6 +188,17 @@ struct ServoStatusWithCommand
     ServoStatus *status;
     base::JointState cmd;
 };
+
+bool noErrorOrOnlyOverload(ErrorStatus status)
+{
+    //if there is no error at all everything is fine
+    if(!(int)status.hasError())
+        return true;
+    //if one of the 'other' errors (but overload) is set, report that there is a problem
+    if((int)status.angleLimitError || (int)status.checksumError || (int)status.inputVoltageError ||
+       (int)status.instructionError || (int)status.overheatingError || (int)status.rangeError)
+        return false;
+}
     
 void Task::updateHook()
 {
@@ -285,7 +297,17 @@ void Task::updateHook()
                 LOG_ERROR("Set position %i (%f rad) for servo id %i failed! Min Pos: %f, Max Pos: %f, Offset: %f",
                           pos, target.position, id, servoLimit.min_pos, servoLimit.max_pos, status.positionOffset);
                 printErrorStatus(dynamixel_.getErrorStatus());
-                throw std::runtime_error("could not set target position for servo");
+                if(!noErrorOrOnlyOverload(dynamixel_.getErrorStatus())){
+                    throw std::runtime_error("could not set target position for servo");
+                }
+                else{
+                    if(state()!=OVERLOAD)
+                        state(OVERLOAD);
+                }
+            }
+            else{
+                if(state()!=RUNNING)
+                    state(RUNNING);
             }
         }
 
